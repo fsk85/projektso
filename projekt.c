@@ -137,8 +137,9 @@ subDirList *getSubDirs(char *sourceDir){
     subDirList *list = malloc(sizeof(subDirList));
     if(!list) exit(EXIT_FAILURE);
     struct dirent *subDir;
-    while((subDir = readdir(dir)) != NULL){
-      if(subDir->d_type == DT_DIR ){
+    while((subDir = readdir(dir)) != NULL ){
+      if(subDir->d_type == DT_DIR && !(strcmp(subDir->d_name, ".") == 0 || strcmp(subDir->d_name, "..") ==0)){
+        printf("%s\n",subDir->d_name);
         char dirPath[PATH_MAX];
         strcat(dirPath, sourceDir);
         strcat(dirPath, "/");
@@ -171,7 +172,23 @@ void daemonLoop(char *sourceDir, char *targetDir)
     else {
       subDirList *srcDirHead = getSubDirs(sourceDir);
       subDirList *targetDirHead = getSubDirs(targetDir);
-      
+      subDirList *srcDirNode = srcDirHead;
+      subDirList *targetDirNode = targetDirHead;
+      while(srcDirNode){
+        fileList *srcDirHead = saveFilesToList(sourceDir);
+        fileList *targetDirHead = saveFilesToList(targetDir);
+        fileList *node = srcDirHead;
+        fileList *nodeTarg = targetDirHead;
+        while(node){
+          /* Sprawdzamy czy plik istnieje w katalogu docelowym i czy zostal zmieniony */
+         if(changedFile(node,targetDirHead)){
+           /*Skopiuj plik do katalogu docelowego */
+         printf("zmienil sie lub nie istnieje: %s\n",node->fileName);
+      }
+        node = node->next;
+        }
+       
+      }
       
       
     }
