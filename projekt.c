@@ -137,17 +137,20 @@ subDirList *getSubDirs(char *sourceDir){
     subDirList *list = malloc(sizeof(subDirList));
     if(!list) exit(EXIT_FAILURE);
     struct dirent *subDir;
-    while((subDir = readdir(dir)) != NULL ){
+    subDir = readdir(dir);
+    strcpy(list->path,sourceDir);
+    while(subDir != NULL){
       if(subDir->d_type == DT_DIR && !(strcmp(subDir->d_name, ".") == 0 || strcmp(subDir->d_name, "..") ==0)){
-        printf("%s\n",subDir->d_name);
         char dirPath[PATH_MAX];
         strcat(dirPath, sourceDir);
         strcat(dirPath, "/");
         strcat(dirPath, subDir->d_name);
         list->next = getSubDirs(dirPath);
     }
+    subDir = readdir(dir);
   }
   closedir(dir);
+  printf("%s\n",list->path);
   return list; 
 }
 
@@ -171,23 +174,25 @@ void daemonLoop(char *sourceDir, char *targetDir)
     }
     else {
       subDirList *srcDirHead = getSubDirs(sourceDir);
+      printf("return1: targerDir: %s\n",targetDir);
       subDirList *targetDirHead = getSubDirs(targetDir);
+      printf("return2\n");
       subDirList *srcDirNode = srcDirHead;
       subDirList *targetDirNode = targetDirHead;
-      while(srcDirNode){
-        fileList *srcDirHead = saveFilesToList(sourceDir);
-        fileList *targetDirHead = saveFilesToList(targetDir);
-        fileList *node = srcDirHead;
-        fileList *nodeTarg = targetDirHead;
+      while(srcDirNode != NULL){
+        fileList *srcDirHeadNode = saveFilesToList(srcDirNode->path);
+        fileList *targetDirHeadNode = saveFilesToList(targetDirNode->path);
+        fileList *node = srcDirHeadNode;
+        fileList *nodeTarg = targetDirHeadNode;
         while(node){
           /* Sprawdzamy czy plik istnieje w katalogu docelowym i czy zostal zmieniony */
-         if(changedFile(node,targetDirHead)){
+         if(changedFile(node,targetDirHeadNode)){
            /*Skopiuj plik do katalogu docelowego */
          printf("zmienil sie lub nie istnieje: %s\n",node->fileName);
       }
         node = node->next;
         }
-       
+        srcDirNode = srcDirNode->next; 
       }
       
       
