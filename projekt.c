@@ -130,22 +130,22 @@ void checkDirs(char *sourceDir,char *targetDir)
 }
 
 
-subDirList *getSubDirs(char *sourceDir){
+subDirList *getSubDirs(char *dirPath){
     DIR *dir;
-    dir = opendir(sourceDir);
+    dir = opendir(dirPath);
     if(!dir) exit(EXIT_FAILURE);
     subDirList *list = malloc(sizeof(subDirList));
     if(!list) exit(EXIT_FAILURE);
     struct dirent *subDir;
     subDir = readdir(dir);
-    strcpy(list->path,sourceDir);
+    strcpy(list->path,dirPath);
     while(subDir != NULL){
       if(subDir->d_type == DT_DIR && !(strcmp(subDir->d_name, ".") == 0 || strcmp(subDir->d_name, "..") ==0)){
-        char dirPath[PATH_MAX];
-        strcat(dirPath, sourceDir);
-        strcat(dirPath, "/");
-        strcat(dirPath, subDir->d_name);
-        list->next = getSubDirs(dirPath);
+        char subDirPath[PATH_MAX] = { 0 };
+        strcat(subDirPath, dirPath);
+        strcat(subDirPath, "/");
+        strcat(subDirPath, subDir->d_name);
+        list->next = getSubDirs(subDirPath);
     }
     subDir = readdir(dir);
   }
@@ -174,7 +174,7 @@ void daemonLoop(char *sourceDir, char *targetDir)
     }
     else {
       subDirList *srcDirHead = getSubDirs(sourceDir);
-      printf("return1: targerDir: %s\n",targetDir);
+      printf("return1: targetDir: %s\n",targetDir);
       subDirList *targetDirHead = getSubDirs(targetDir);
       printf("return2\n");
       subDirList *srcDirNode = srcDirHead;
