@@ -164,7 +164,7 @@ subDirList *getSubDirs(subDirList *head, char *dirPath) {
         subDir = readdir(dir);
     }
     closedir(dir);
-    printf("%s\n", head->path);
+    printf("%s\n", dirPath);
     return head;
 }
 
@@ -198,22 +198,8 @@ void daemonLoop(char *sourceDir, char *targetDir)
       /* inicjalizujemy pomocnicze wskazniki na pierwszy element listy podkatalogow */
       subDirList *srcDirNode = srcDirHead;
       subDirList *targetDirNode = targetDirHead;
-      /* dopoki katalog nie jest pusty to porownujemy pliki */
-      while(srcDirNode != NULL){
-        fileList *srcDirHeadNode = saveFilesToList(srcDirNode->path);
-        fileList *targetDirHeadNode = saveFilesToList(targetDirNode->path);
-        fileList *node = srcDirHeadNode;
-        fileList *nodeTarg = targetDirHeadNode;
-        while(node){
-          /* Sprawdzamy czy plik istnieje w katalogu docelowym i czy zostal zmieniony */
-         if(changedFile(node,targetDirHeadNode)){
-           /*Skopiuj plik do katalogu docelowego */
-         printf("zmienil sie lub nie istnieje: %s\n",node->fileName);
-      }
-        node = node->next;
-        }
-        srcDirNode = srcDirNode->next; 
-      }
+      /* dopoki nie doszlismy do konca listy katalogow to porownujemy pliki */
+      
       
       
     }
