@@ -187,14 +187,18 @@ void daemonLoop(char *sourceDir, char *targetDir)
     /* todo: usun pliki ktore istnieja w katalogu docelowym, a nie istnieja w zrodlowym */
     }
     else {
+      /* inicjalizujemy liste podkatalogow w katalogu zrodlowym*/
       subDirList *srcDirHead = NULL; 
       srcDirHead = getSubDirs(srcDirHead,sourceDir);
       printf("return1: targetDir: %s\n",targetDir);
+      /* inicjalizujemy liste podkatalogow w katalogu docelowym */
       subDirList *targetDirHead = NULL; 
       targetDirHead = getSubDirs(targetDirHead,targetDir);
       printf("return2\n");
+      /* inicjalizujemy pomocnicze wskazniki na pierwszy element listy podkatalogow */
       subDirList *srcDirNode = srcDirHead;
       subDirList *targetDirNode = targetDirHead;
+      /* dopoki katalog nie jest pusty to porownujemy pliki */
       while(srcDirNode != NULL){
         fileList *srcDirHeadNode = saveFilesToList(srcDirNode->path);
         fileList *targetDirHeadNode = saveFilesToList(targetDirNode->path);
