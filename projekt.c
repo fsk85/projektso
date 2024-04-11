@@ -129,29 +129,43 @@ void checkDirs(char *sourceDir,char *targetDir)
   }
 }
 
+void appendSubDirList(subDirList **head, char *Path) {
+    subDirList *node = malloc(sizeof(subDirList));
+    if (!node) exit(EXIT_FAILURE);
+    strcpy(node->path, Path);
+    node->next = NULL;
+    if (!*head) {
+        *head = node;
+        return;
+    }
+    subDirList *tmp = *head;
+    while (tmp->next) {
+        tmp = tmp->next;
+    }
+    tmp->next = node;
+}
 
-subDirList *getSubDirs(char *dirPath){
+subDirList *getSubDirs(subDirList *head, char *dirPath) {
     DIR *dir;
     dir = opendir(dirPath);
-    if(!dir) exit(EXIT_FAILURE);
-    subDirList *list = malloc(sizeof(subDirList));
-    if(!list) exit(EXIT_FAILURE);
+    if (!dir) exit(EXIT_FAILURE);
+
     struct dirent *subDir;
     subDir = readdir(dir);
-    strcpy(list->path,dirPath);
-    while(subDir != NULL){
-      if(subDir->d_type == DT_DIR && !(strcmp(subDir->d_name, ".") == 0 || strcmp(subDir->d_name, "..") ==0)){
-        char subDirPath[PATH_MAX] = { 0 };
-        strcat(subDirPath, dirPath);
-        strcat(subDirPath, "/");
-        strcat(subDirPath, subDir->d_name);
-        list->next = getSubDirs(subDirPath);
+    appendSubDirList(&head, dirPath);
+    while (subDir != NULL) {
+        if (subDir->d_type == DT_DIR && strcmp(subDir->d_name, ".") != 0 && strcmp(subDir->d_name, "..") != 0) {
+            char subDirPath[PATH_MAX] = { 0 };
+            strcat(subDirPath, dirPath);
+            strcat(subDirPath, "/");
+            strcat(subDirPath, subDir->d_name);
+            head = getSubDirs(head, subDirPath);
+        }
+        subDir = readdir(dir);
     }
-    subDir = readdir(dir);
-  }
-  closedir(dir);
-  printf("%s\n",list->path);
-  return list; 
+    closedir(dir);
+    printf("%s\n", head->path);
+    return head;
 }
 
 void daemonLoop(char *sourceDir, char *targetDir) 
@@ -173,9 +187,11 @@ void daemonLoop(char *sourceDir, char *targetDir)
     /* todo: usun pliki ktore istnieja w katalogu docelowym, a nie istnieja w zrodlowym */
     }
     else {
-      subDirList *srcDirHead = getSubDirs(sourceDir);
+      subDirList *srcDirHead = NULL; 
+      srcDirHead = getSubDirs(srcDirHead,sourceDir);
       printf("return1: targetDir: %s\n",targetDir);
-      subDirList *targetDirHead = getSubDirs(targetDir);
+      subDirList *targetDirHead = NULL; 
+      targetDirHead = getSubDirs(targetDirHead,targetDir);
       printf("return2\n");
       subDirList *srcDirNode = srcDirHead;
       subDirList *targetDirNode = targetDirHead;
