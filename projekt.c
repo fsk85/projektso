@@ -309,7 +309,7 @@ fileList *
             }
 
             /* Jezeli jest plikiem regularnym to dodajemy go do listy */
-            if (S_ISREG(info.st_mode)) {
+            if (!S_ISDIR(info.st_mode)) {
                 addToList( & head,
                     dirContent -> d_name,
                     info.st_size,
@@ -317,7 +317,7 @@ fileList *
                     info.st_mode);
             }
         }
-
+        closedir(dir);
         return head;
     }
 
@@ -357,7 +357,7 @@ appendSubDirList(subDirList ** head, char * Path) {
     tmp -> next = node;
     tmp -> next -> previous = tmp;
 }
-
+/* zmienic zeby katalog sie zamykal przed wywolaniem rekurencyjnym bo wypierdala blad przy wielu plikach w katalogu ze za duzo otwartych plikow jest */
 subDirList *
     getSubDirs(subDirList * head, char * dirPath) {
         DIR * dir;
@@ -528,6 +528,7 @@ daemonLoop(char * sourceDir, char * targetDir) {
         } else {
             syncRecursive(sourceDir, targetDir);
             printf("SKONCZONO SYNC RECURSE\n");
+            exit(EXIT_SUCCESS);
         }
         /* uwolnic pamiec */
         sleep(flags.sleep_time);
