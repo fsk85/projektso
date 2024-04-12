@@ -51,6 +51,7 @@ typedef struct subDirList {
     char path[PATH_MAX];
     mode_t permissions; /* to do wyjebania */
     struct subDirList * next;
+    struct subDirList * previous;
 }
 subDirList;
 
@@ -354,6 +355,7 @@ appendSubDirList(subDirList ** head, char * Path) {
         tmp = tmp -> next;
     }
     tmp -> next = node;
+    tmp -> next -> previous = tmp;
 }
 
 subDirList *
@@ -439,6 +441,45 @@ void syncNonRecursive(char * sourceDirPath, char * targetDirPath) {
     }
 }
 
+bool directoryExists(char *dirPath){
+  DIR *dir = opendir(dirPath);
+  if(dir == NULL) {
+    closedir(dir);
+    return false;
+  } 
+  else{ 
+    closedir(dir);
+    return true;
+  }
+}
+
+void removeRecursive(subDirList *trgDirHead, char *trgDirPath, char *srcDirPath){
+  /* idziemy na sam koniec listy katalogow docelowych i idac do tylu sprawdzamy czy istnieja w liscie katalogow zrodlowych, jesli nie to usuwamy */
+  while(trgDirHead->next){
+    trgDirHead = trgDirHead -> next;
+  }
+  while(trgDirHead->previous){
+      /* konstruujemy sciezke i sprawdzamy czy katalog istnieje jesli nie to go usuwamy */
+      char *relativePath = getRelativePath(trgDirPath, trgDirHead -> path); 
+      char *fullPath = constructFullPath(srcDirPath,relativePath);
+      if(!directoryExists(fullPath)){
+      fileList *removeList = saveFilesToList(trgDirHead -> path);
+      while(removeList){
+        char *removeFilePath = constructFullPath(trgDirHead->path,removeList->fileName);
+        unlink(removeFilePath);
+        fileList *tmp = removeList;
+        removeList = removeList -> next;
+        free(tmp);
+      }
+      rmdir(trgDirHead -> path);
+      printf("USUNIETO: %s\n",trgDirHead->path);
+    }
+      trgDirHead = trgDirHead -> previous;
+    }
+  
+}
+
+
 void
 syncRecursive(char * sourceDirPath, char * targetDirPath) {
     /* inicjalizujemy liste podkatalogow w katalogu zrodlowym*/
@@ -451,7 +492,6 @@ syncRecursive(char * sourceDirPath, char * targetDirPath) {
      * podkatalogow */
     subDirList * srcDirNode = srcDirHead;
     subDirList * targetDirNode = targetDirHead;
-
     while (srcDirNode) {
         char * relativePath = getRelativePath(sourceDirPath, srcDirNode -> path);
         printf("RELATIVE: %s\n", relativePath);
@@ -472,6 +512,7 @@ syncRecursive(char * sourceDirPath, char * targetDirPath) {
         }
         srcDirNode = srcDirNode -> next;
     }
+      removeRecursive(targetDirHead, targetDirPath, sourceDirPath); 
 
 }
 
@@ -521,13 +562,13 @@ runDaemon(char * sourceDir, char * targetDir) {
         flags.sleep_time,
         flags.threshold);
     /* Zamkniecie otwartych plikow */
-    for (i = 0; i < NR_OPEN; i++)
-        close(i);
+ //  for (i = 0; i < NR_OPEN; i++)
+   //     close(i);
 
     /* Przeadresowanie deskryptorow plikow 0,1,2 na /dev/null */
-    open("/dev/null", O_RDWR);
-    dup(0);
-    dup(0);
+  // open("/dev/null", O_RDWR);
+ //   dup(0);
+  //  dup(0);
 
     daemonLoop(sourceDir, targetDir);
     return 1;
