@@ -10,6 +10,8 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
+#include <sys/mman.h>
 
 /* todo:
  * zmienic perrory na logi, bo stdout jest zamkniete
@@ -42,9 +44,204 @@ typedef struct subDirList
 config flags = { 300, false, 10000 };
 
 #define NR_OPEN 1024
-
+#define O_BINARY  0
 /* funkcja ktora sprawdza czy plik z jednego katalogu istnieje i jest taki sam
  * jak w drugim katalogu*/
+
+// Funkcja kopiujaca dla dużych plików (> edge)
+int copy_big(const char *source_file, const char *destination_file, size_t BUF_SIZE)
+{
+    // Otwórz pliki
+    int fd_in = open(source_file, O_RDONLY);
+    if (fd_in == -1)
+    {
+        perror("Problem pliku źródlowego!");
+        return EXIT_FAILURE;
+    }
+
+    int fd_out = open(destination_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd_out == -1)
+    {
+        perror("Problem pliku docelowego!");
+        close(fd_in);
+        return EXIT_FAILURE;
+    }
+
+    struct stat sb;
+    if (fstat(fd_in, &sb) == -1)
+    {
+        perror("Problem ze statystykami!");
+        close(fd_in);
+        return EXIT_FAILURE;
+    }
+    size_t total_size = sb.st_size;
+    size_t bytes_copied = 0;
+    size_t bytes_written;
+    size_t mapping_size;
+    void *addr;
+
+    // Petla kopiujaca dane
+    while (bytes_copied < total_size)
+    {
+        if (total_size - bytes_copied < BUF_SIZE)
+        {
+            mapping_size = total_size - bytes_copied;
+        }
+        else
+        {
+            mapping_size = BUF_SIZE;
+        }
+
+        // Mapowanie pliku do pamieci
+        addr = mmap(NULL, mapping_size, PROT_READ, MAP_SHARED, fd_in, bytes_copied);
+        if (addr == MAP_FAILED)
+        {
+            perror("Problem z mmap'em!");
+            close(fd_in);
+            close(fd_out);
+            return EXIT_FAILURE;
+        }
+
+        // Zapis danych do pliku docelowego
+        bytes_written = write(fd_out, addr, mapping_size);
+
+        if (bytes_written != mapping_size)
+        {
+            if (bytes_written == -1 && errno == EINTR)
+            {
+                munmap(addr, mapping_size);
+                continue;
+            }
+            perror("Problem z zapisem!");
+            munmap(addr, mapping_size);
+            close(fd_in);
+            close(fd_out);
+            return EXIT_FAILURE;
+        }
+
+        // Zwolnienie zmapowanej pamieci
+        if (munmap(addr, mapping_size) == -1)
+        {
+            perror("Problem z munmap'em!");
+            close(fd_in);
+            close(fd_out);
+            return EXIT_FAILURE;
+        }
+
+        bytes_copied += mapping_size;
+    }
+
+    // Zamkniecie plików
+    if (close(fd_in) == -1)
+    {
+        perror("Problem z zamknieciem pliku zrodlowego!");
+        return EXIT_FAILURE;
+    }
+    if (close(fd_out) == -1)
+    {
+        perror("Problem z zamknieciem pliku docelowego!");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+// Kopiowanie dla malych plikow
+int copy_small(const char *source_file, const char *destination_file, size_t BUF_SIZE)
+{
+    ssize_t bytes_read;
+    ssize_t bytes_written;
+    unsigned char buffer[BUF_SIZE];
+
+    // Otworz plik zrodlowy
+    int fd_in = open(source_file, O_RDONLY| O_BINARY);
+
+    if (fd_in == -1)
+    {
+        perror("Problem pliku zrodlowego!");
+        exit(EXIT_FAILURE);
+    }
+
+    // Otworz plik docelowy
+    int fd_out = open(destination_file, O_WRONLY | O_CREAT | O_TRUNC| O_BINARY, 0644);
+
+    if (fd_out == -1)
+    {
+        perror("Problem pliku docelowego!");
+        close(fd_in);
+        exit(EXIT_FAILURE);
+    }
+
+    // Petla kopiujaca dane
+    while ((bytes_read = read(fd_in, buffer, BUF_SIZE)) > 0)
+    {
+        bytes_written = write(fd_out, buffer, bytes_read);
+
+        if (bytes_written != bytes_read)
+        {
+            perror("Problem zapisu!");
+            close(fd_in);
+            close(fd_out);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Zamkniecie plikow
+    if (close(fd_in) == -1)
+    {
+        perror("Problem z zamknieciem pliku zrodlowego!");
+        return EXIT_FAILURE;
+    }
+
+    if (close(fd_out) == -1)
+    {
+        perror("Problem z zamknieciem pliku docelowego!");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+void copy(char* sourceDirPath, char* targetDirPath)
+{
+    size_t buffer;
+    size_t size;
+    size_t result;
+    buffer=4096;
+    // Sprawdzenie liczby argumentow
+    const char *source_file = sourceDirPath;
+    const char *destination_file = targetDirPath;
+    
+
+    // Sprawdzenie rozmiaru pliku zrodlowego
+    struct stat st;
+    stat(source_file, &st);
+    size = st.st_size;
+
+    // Wybor funkcji kopiujacej w zaleznosci od rozmiaru pliku
+    if (flags.threshold<size)
+    {
+        result = copy_big(source_file, destination_file,buffer);
+    }
+    else
+    {
+        result = copy_small(source_file, destination_file,buffer);
+    }
+
+    // Sprawdzenie wyniku operacji kopiowania
+    if (result == EXIT_FAILURE)
+    {
+        perror("Blad kopiowania!");
+        return EXIT_FAILURE;
+    }
+    else
+    {
+        printf("Udalo sie skopiowac plik!\n");
+    }
+}
+
+
+
 
 int
 changedFile(fileList* sourceNode, fileList* targetNode)
@@ -222,6 +419,14 @@ char* getRelativePath(const char *basePath, const char *targetPath) {
     return strdup(relativePath);
 }
 
+char *constructFullPath(char *dirPath, char *fileName){
+  char *tmp;
+  strcpy(tmp,dirPath);
+  strcat(tmp,"/");
+  strcat(tmp,fileName);
+  return tmp;
+}
+
 void syncNonRecursive(char *sourceDirPath, char *targetDirPath){
       fileList* srcDirHead = saveFilesToList(sourceDirPath);
       fileList* targetDirHead = saveFilesToList(targetDirPath);
@@ -232,8 +437,10 @@ void syncNonRecursive(char *sourceDirPath, char *targetDirPath){
             * zostal zmieniony */
            if (changedFile(node, targetDirHead)) {
                /*Skopiuj plik do katalogu docelowego */
-                    printf("zmienil sie lub nie istnieje plik w katalogu:  %s o naziwe %s\n",targetDirPath,
-                           node->fileName);
+                    printf("zmienil sie lub nie istnieje plik w katalogu:  %s o naziwe %s\n",targetDirPath, node->fileName);
+                    char *fullSourcePath = constructFullPath(sourceDirPath,node->fileName);
+                    char *fullTargetPath = constructFullPath(targetDirPath,node->fileName);
+                    copy(fullSourcePath,fullTargetPath);
                 }
                 node = node->next;
                 printf("WYSIADAMY\n");
