@@ -13,6 +13,7 @@
 
 /* todo:
  * zmienic perrory na logi, bo stdout jest zamkniete
+ * dodac checki
  * dodac funkcje copy co wybiera czy copy big czy copy small i dac ja w syncNonRecursive
  */
 typedef struct fileList
@@ -34,7 +35,7 @@ typedef struct
 typedef struct subDirList
 {
     char path[PATH_MAX];
-    mode_t permissions;
+    mode_t permissions; /* to do wyjebania */
     struct subDirList* next;
 } subDirList;
 
