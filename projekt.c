@@ -420,11 +420,18 @@ char* getRelativePath(const char *basePath, const char *targetPath) {
 }
 
 char *constructFullPath(char *dirPath, char *fileName){
-  char *tmp;
-  strcpy(tmp,dirPath);
-  strcat(tmp,"/");
-  strcat(tmp,fileName);
-  return tmp;
+    size_t dirLen = strlen(dirPath);
+    size_t fileLen = strlen(fileName);
+    char *tmp = malloc((dirLen+fileLen+2)*sizeof(char));
+    if (tmp == NULL) {
+        exit(EXIT_FAILURE);
+    }
+
+    strcpy(tmp, dirPath);
+    strcat(tmp, "/");
+    strcat(tmp, fileName);
+    printf("constructed path: %s\n", tmp);
+    return tmp;
 }
 
 void syncNonRecursive(char *sourceDirPath, char *targetDirPath){
@@ -440,6 +447,8 @@ void syncNonRecursive(char *sourceDirPath, char *targetDirPath){
                     printf("zmienil sie lub nie istnieje plik w katalogu:  %s o naziwe %s\n",targetDirPath, node->fileName);
                     char *fullSourcePath = constructFullPath(sourceDirPath,node->fileName);
                     char *fullTargetPath = constructFullPath(targetDirPath,node->fileName);
+                    printf("FULLSOURCEPATH: %s\n", fullSourcePath);
+                    printf("FULLTARGETPATH: %s\n",fullTargetPath);
                     copy(fullSourcePath,fullTargetPath);
                 }
                 node = node->next;
