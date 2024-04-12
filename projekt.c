@@ -55,16 +55,18 @@ changedFile(fileList* sourceNode, fileList* targetNode)
            sourceNode->fileSize,
            sourceNode->permissions);
     int changed = 1;
-    while (targetNode) {
+    while (targetNode != NULL) {
         if (!strcmp(sourceNode->fileName, targetNode->fileName) &&
             sourceNode->fileSize == targetNode->fileSize &&
             sourceNode->permissions == targetNode->permissions &&
             sourceNode->modDate < targetNode->modDate) {
             changed = 0;
-            continue;
+            break;
         }
         targetNode = targetNode->next;
     }
+
+        printf("wysiadamy z : %s do: \n",sourceNode->fileName,sourceNode->next->fileName);
     return changed;
 }
 
@@ -197,7 +199,7 @@ getSubDirs(subDirList* head, char* dirPath)
         subDir = readdir(dir);
     }
     closedir(dir);
-    printf("%s\n", dirPath);
+    printf("getting subdir: %s\n", dirPath);
     return head;
 }
 
@@ -224,15 +226,16 @@ void syncNonRecursive(char *sourceDirPath, char *targetDirPath){
       fileList* targetDirHead = saveFilesToList(targetDirPath);
       fileList* node = srcDirHead;
       fileList* nodeTarg = targetDirHead;
-        while (node) {
+        while (node != NULL) {
             /* Sprawdzamy czy plik istnieje w katalogu docelowym i czy
             * zostal zmieniony */
            if (changedFile(node, targetDirHead)) {
                /*Skopiuj plik do katalogu docelowego */
-                    printf("zmienil sie lub nie istnieje: %s\n",
+                    printf("zmienil sie lub nie istnieje plik w katalogu:  %s o naziwe %s\n",targetDirPath,
                            node->fileName);
                 }
                 node = node->next;
+                printf("WYSIADAMY\n");
             }
 }
 
@@ -242,11 +245,9 @@ syncRecursive(char *sourceDirPath, char *targetDirPath)
     /* inicjalizujemy liste podkatalogow w katalogu zrodlowym*/
     subDirList* srcDirHead = NULL;
     srcDirHead = getSubDirs(srcDirHead, sourceDirPath);
-    printf("return1: targetDir: %s\n", targetDirPath);
     /* inicjalizujemy liste podkatalogow w katalogu docelowym */
     subDirList* targetDirHead = NULL;
     targetDirHead = getSubDirs(targetDirHead, targetDirPath);
-    printf("return2\n");
     /* inicjalizujemy pomocnicze wskazniki na pierwszy element listy
      * podkatalogow */
     subDirList* srcDirNode = srcDirHead;
@@ -282,11 +283,13 @@ daemonLoop(char* sourceDir, char* targetDir)
     while (true) {
         if (flags.recursive == false) {
             syncNonRecursive(sourceDir,targetDir);
+            printf("SKONCZONO SYNC NIE REKURESE\n");
             /* todo: usun pliki ktore istnieja w katalogu docelowym, a nie
              * istnieja w zrodlowym */
             
         } else {
             syncRecursive(sourceDir,targetDir);
+            printf("SKONCZONO SYNC RECURSE\n");
         }
         /* uwolnic pamiec */
         sleep(flags.sleep_time);
@@ -315,20 +318,20 @@ runDaemon(char* sourceDir, char* targetDir)
         return -1;
 
     pid_t cpid = getpid();
-    printf("sourceDir: %s targetDir: %s pid: %d t: %d p: %d\n",
+    printf("info wstepne: sourceDir: %s targetDir: %s pid: %d t: %d p: %d\n",
            sourceDir,
            targetDir,
            cpid,
            flags.sleep_time,
            flags.threshold);
     /* Zamkniecie otwartych plikow */
-    //  for (i = 0; i < NR_OPEN; i++)
-    //   close(i);
+//      for (i = 0; i < NR_OPEN; i++)
+//       close(i);
 
     /* Przeadresowanie deskryptorow plikow 0,1,2 na /dev/null */
-    // open("/dev/null",O_RDWR);
-    // dup(0);
-    // dup(0);
+ //    open("/dev/null",O_RDWR);
+ //    dup(0);
+  //   dup(0);
 
     daemonLoop(sourceDir, targetDir);
     return 1;
