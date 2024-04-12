@@ -207,7 +207,6 @@ char* getRelativePath(const char *basePath, const char *targetPath) {
     size_t targetLen = strlen(targetPath);
 
     if (strncmp(basePath, targetPath, baseLen) != 0) {
-        printf("Error: '%s' is not a subdirectory of '%s'\n", targetPath, basePath);
         return NULL;
     }
 
