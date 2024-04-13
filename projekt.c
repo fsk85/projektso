@@ -30,6 +30,7 @@
  * zmienic perrory na logi, bo stdout jest zamkniete
  * dodac checki
  * dodac funkcje copy co wybiera czy copy big czy copy small i dac ja w syncNonRecursive
+ * cos sie jebie z usuwaniem plikow z poczatkowego katalogu w rekursji
  */
 typedef struct fileList {
     char fileName[PATH_MAX];
@@ -405,6 +406,7 @@ char * getRelativePath(const char * basePath,
 }
 
 char * constructFullPath(char * dirPath, char * fileName) {
+    if(fileName == NULL) return dirPath;
     size_t dirLen = strlen(dirPath);
     size_t fileLen = strlen(fileName);
     char * tmp = malloc((dirLen + fileLen + 2) * sizeof(char));
@@ -563,13 +565,13 @@ runDaemon(char * sourceDir, char * targetDir) {
         flags.sleep_time,
         flags.threshold);
     /* Zamkniecie otwartych plikow */
- //  for (i = 0; i < NR_OPEN; i++)
-   //     close(i);
+   for (i = 0; i < NR_OPEN; i++)
+        close(i);
 
     /* Przeadresowanie deskryptorow plikow 0,1,2 na /dev/null */
-  // open("/dev/null", O_RDWR);
- //   dup(0);
-  //  dup(0);
+   open("/dev/null", O_RDWR);
+    dup(0);
+    dup(0);
 
     daemonLoop(sourceDir, targetDir);
     return 1;
