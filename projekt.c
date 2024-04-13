@@ -29,8 +29,7 @@
 /* todo:
  * zmienic perrory na logi, bo stdout jest zamkniete
  * dodac checki
- * dodac funkcje copy co wybiera czy copy big czy copy small i dac ja w syncNonRecursive
- * cos sie jebie z usuwaniem plikow z poczatkowego katalogu w rekursji
+ * w syncNonRecursive przy usuwaniu plikow, pierdoli sie przez modDate w funkcji changedFile, napisac inna funkcje dla tego przypadku lub cos
  */
 typedef struct fileList {
     char fileName[PATH_MAX];
@@ -244,8 +243,8 @@ changedFile(fileList * sourceNode, fileList * targetNode) {
     while (targetNode != NULL) {
         if (!strcmp(sourceNode -> fileName, targetNode -> fileName) &&
             sourceNode -> fileSize == targetNode -> fileSize &&
-            sourceNode -> permissions == targetNode -> permissions &&
-            sourceNode -> modDate < targetNode -> modDate) {
+            sourceNode -> permissions == targetNode -> permissions/* &&
+            sourceNode -> modDate < targetNode -> modDate */) {
             changed = 0;
             break;
         }
@@ -441,6 +440,13 @@ void syncNonRecursive(char * sourceDirPath, char * targetDirPath) {
         node = node -> next;
         printf("WYSIADAMY\n");
     }
+    while(nodeTarg){
+        if(changedFile(nodeTarg,srcDirHead)){
+        char * fullTargetPath = constructFullPath(targetDirPath, nodeTarg -> fileName);
+        unlink(fullTargetPath);
+        }
+        nodeTarg = nodeTarg -> next;
+    }
 }
 
 bool directoryExists(char *dirPath){
@@ -460,7 +466,7 @@ void removeRecursive(subDirList *trgDirHead, char *trgDirPath, char *srcDirPath)
   while(trgDirHead->next){
     trgDirHead = trgDirHead -> next;
   }
-  while(trgDirHead->previous){
+  while(trgDirHead -> previous != NULL){
       /* konstruujemy sciezke i sprawdzamy czy katalog istnieje jesli nie to go usuwamy */
       char *relativePath = getRelativePath(trgDirPath, trgDirHead -> path); 
       char *fullPath = constructFullPath(srcDirPath,relativePath);
@@ -565,13 +571,13 @@ runDaemon(char * sourceDir, char * targetDir) {
         flags.sleep_time,
         flags.threshold);
     /* Zamkniecie otwartych plikow */
-   for (i = 0; i < NR_OPEN; i++)
-        close(i);
+//   for (i = 0; i < NR_OPEN; i++)
+//        close(i);
 
     /* Przeadresowanie deskryptorow plikow 0,1,2 na /dev/null */
-   open("/dev/null", O_RDWR);
-    dup(0);
-    dup(0);
+//   open("/dev/null", O_RDWR);
+//    dup(0);
+//    dup(0);
 
     daemonLoop(sourceDir, targetDir);
     return 1;
