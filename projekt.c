@@ -43,7 +43,7 @@ fileList;
 typedef struct {
     int sleep_time;
     bool recursive;
-    int threshold;
+    off_t threshold;
 }
 config;
 
@@ -58,7 +58,7 @@ subDirList;
 config flags = {
     300,
     false,
-    10000
+    134000000
 };
 
 #define NR_OPEN 1024
@@ -73,21 +73,21 @@ int copy_big(const char * source_file,
     int fd_in = open(source_file, O_RDONLY);
     if (fd_in == -1) {
         perror("Problem pliku źródlowego!");
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE); 
     }
 
     int fd_out = open(destination_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd_out == -1) {
         perror("Problem pliku docelowego!");
         close(fd_in);
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
 
     struct stat sb;
     if (fstat(fd_in, & sb) == -1) {
         perror("Problem ze statystykami!");
         close(fd_in);
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
     size_t total_size = sb.st_size;
     size_t bytes_copied = 0;
@@ -156,7 +156,7 @@ int copy_small(const char * source_file,
     const char * destination_file, size_t BUF_SIZE) {
     ssize_t bytes_read;
     ssize_t bytes_written;
-    unsigned char buffer[BUF_SIZE];
+    char *buffer = malloc(BUF_SIZE);
 
     // Otworz plik zrodlowy
     int fd_in = open(source_file, O_RDONLY | O_BINARY);
@@ -181,6 +181,7 @@ int copy_small(const char * source_file,
 
         if (bytes_written != bytes_read) {
             perror("Problem zapisu!");
+            free(buffer);
             close(fd_in);
             close(fd_out);
             exit(EXIT_FAILURE);
@@ -190,25 +191,24 @@ int copy_small(const char * source_file,
     // Zamkniecie plikow
     if (close(fd_in) == -1) {
         perror("Problem z zamknieciem pliku zrodlowego!");
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
 
     if (close(fd_out) == -1) {
         perror("Problem z zamknieciem pliku docelowego!");
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
-
+    free(buffer);
     return EXIT_SUCCESS;
 }
 
-void copy(char * sourceDirPath, char * targetDirPath) {
-    size_t buffer;
+void copy(char * sourceFilePath, char * targetFilePath) {
+    size_t bufferSize = 4096;
     size_t size;
     size_t result;
-    buffer = 4096;
-    // Sprawdzenie liczby argumentow
-    const char * source_file = sourceDirPath;
-    const char * destination_file = targetDirPath;
+    // Przypisanie sciezki do pliku
+    const char * source_file = sourceFilePath;
+    const char * destination_file = targetFilePath;
 
     // Sprawdzenie rozmiaru pliku zrodlowego
     struct stat st;
@@ -217,9 +217,9 @@ void copy(char * sourceDirPath, char * targetDirPath) {
 
     // Wybor funkcji kopiujacej w zaleznosci od rozmiaru pliku
     if (flags.threshold < size) {
-        result = copy_big(source_file, destination_file, buffer);
+        result = copy_big(source_file, destination_file, bufferSize);
     } else {
-        result = copy_small(source_file, destination_file, buffer);
+        result = copy_small(source_file, destination_file, bufferSize);
     }
 
     // Sprawdzenie wyniku operacji kopiowania
@@ -536,7 +536,6 @@ daemonLoop(char * sourceDir, char * targetDir) {
         } else {
             syncRecursive(sourceDir, targetDir);
             printf("SKONCZONO SYNC RECURSE\n");
-            exit(EXIT_SUCCESS);
         }
         /* uwolnic pamiec */
         sleep(flags.sleep_time);
