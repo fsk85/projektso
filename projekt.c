@@ -58,7 +58,7 @@ subDirList;
 config flags = {
     300,
     false,
-    134000000
+    134000000 /* 1GB */
 };
 
 #define NR_OPEN 1024
@@ -204,7 +204,7 @@ int copy_small(const char * source_file,
 
 void copy(char * sourceFilePath, char * targetFilePath) {
     size_t bufferSize = 4096;
-    size_t size;
+    off_t size;
     size_t result;
     // Przypisanie sciezki do pliku
     const char * source_file = sourceFilePath;
@@ -547,7 +547,6 @@ int
 runDaemon(char * sourceDir, char * targetDir) {
     pid_t pid;
     int i;
-
     /* Tworzenie nowego procesu */
     pid = fork();
     if (pid == -1)
