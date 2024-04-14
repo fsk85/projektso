@@ -243,8 +243,8 @@ changedFile(fileList * sourceNode, fileList * targetNode) {
     while (targetNode != NULL) {
         if (!strcmp(sourceNode -> fileName, targetNode -> fileName) &&
             sourceNode -> fileSize == targetNode -> fileSize &&
-            sourceNode -> permissions == targetNode -> permissions/* &&
-            sourceNode -> modDate < targetNode -> modDate */) {
+            sourceNode -> permissions == targetNode -> permissions &&
+            sourceNode -> modDate < targetNode -> modDate ) {
             changed = 0;
             break;
         }
@@ -253,6 +253,20 @@ changedFile(fileList * sourceNode, fileList * targetNode) {
 
     printf("wysiadamy z : %s do: \n", sourceNode -> fileName, sourceNode -> next -> fileName);
     return changed;
+}
+
+int fileToRemove(fileList * sourceNode, fileList * targetNode){
+    if (!sourceNode)
+        return 0;
+    int different = 1;
+    while (targetNode != NULL) {
+        if (!strcmp(sourceNode -> fileName, targetNode -> fileName)){ 
+            different = 0;
+            break;
+        }
+        targetNode = targetNode -> next;
+    }
+    return different;
 }
 
 void
@@ -441,7 +455,7 @@ void syncNonRecursive(char * sourceDirPath, char * targetDirPath) {
         printf("WYSIADAMY\n");
     }
     while(nodeTarg){
-        if(changedFile(nodeTarg,srcDirHead)){
+        if(fileToRemove(nodeTarg,srcDirHead)){
         char * fullTargetPath = constructFullPath(targetDirPath, nodeTarg -> fileName);
         unlink(fullTargetPath);
         }
@@ -520,6 +534,7 @@ syncRecursive(char * sourceDirPath, char * targetDirPath) {
         }
         srcDirNode = srcDirNode -> next;
     }
+      // Usuwamy wszystkie katalogi i pliki, ktore nie istnieja w katalogu zrodlowym
       removeRecursive(targetDirHead, targetDirPath, sourceDirPath); 
 
 }
