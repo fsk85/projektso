@@ -26,7 +26,7 @@
 
 #include <sys/mman.h>
 
-/* todo:
+/* TODO:
  * zmienic perrory na logi, bo stdout jest zamkniete
  * dodac checki
  * w syncNonRecursive przy usuwaniu plikow, pierdoli sie przez modDate w funkcji changedFile, napisac inna funkcje dla tego przypadku lub cos
@@ -225,7 +225,7 @@ void copy(char * sourceFilePath, char * targetFilePath) {
     // Sprawdzenie wyniku operacji kopiowania
     if (result == EXIT_FAILURE) {
         perror("Blad kopiowania!");
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     } else {
         printf("Udalo sie skopiowac plik!\n");
     }
