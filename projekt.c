@@ -26,6 +26,7 @@
 
 #include <sys/mman.h>
 
+#include <signal.h>
 /* TODO:
  * zmienic perrory na logi, bo stdout jest zamkniete
  * dodac checki
@@ -60,6 +61,8 @@ config flags = {
     false,
     134000000 /* 1GB */
 };
+
+volatile bool signal_received;
 
 #define NR_OPEN 1024
 #define O_BINARY 0
@@ -539,6 +542,11 @@ syncRecursive(char * sourceDirPath, char * targetDirPath) {
 
 }
 
+void sigusr_handler(int signum)
+{
+    signal_received = true;
+}
+
 void
 daemonLoop(char * sourceDir, char * targetDir) {
     while (true) {
@@ -553,7 +561,13 @@ daemonLoop(char * sourceDir, char * targetDir) {
             printf("SKONCZONO SYNC RECURSE\n");
         }
         /* uwolnic pamiec */
+        signal(SIGUSR1, sigusr_handler);
+        while(!signal_received)
+        {
         sleep(flags.sleep_time);
+        }
+        signal_received = false;
+        signal(SIGUSR1,SIG_IGN);
     }
     /* todo: */
 }
