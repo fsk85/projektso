@@ -32,6 +32,7 @@
 /* TODO:
  * zmienic perrory na logi, bo stdout jest zamkniete
  * dodac checki
+ * test
  */
 typedef struct fileList {
     char fileName[PATH_MAX];
