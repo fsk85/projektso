@@ -1,5 +1,7 @@
 #include <dirent.h>
 
+#include <syslog.h>
+
 #include <fcntl.h>
 
 #include <linux/fs.h>
@@ -30,7 +32,6 @@
 /* TODO:
  * zmienic perrory na logi, bo stdout jest zamkniete
  * dodac checki
- * w syncNonRecursive przy usuwaniu plikow, pierdoli sie przez modDate w funkcji changedFile, napisac inna funkcje dla tego przypadku lub cos
  */
 typedef struct fileList {
     char fileName[PATH_MAX];
@@ -59,7 +60,7 @@ subDirList;
 config flags = {
     300,
     false,
-    134000000 /* 1GB */
+    1000000000 /* 1GB */
 };
 
 volatile bool signal_received;
@@ -545,14 +546,23 @@ syncRecursive(char * sourceDirPath, char * targetDirPath) {
 void sigusr_handler(int signum)
 {
     signal_received = true;
+    syslog(LOG_INFO, "Wybudzenie sie demona na skutek sygnalu");
 }
 
 void
 daemonLoop(char * sourceDir, char * targetDir) {
+    openlog("demon",LOG_NDELAY,LOG_DAEMON);
+    if(flags.recursive == true)
+    {
+    syslog(LOG_INFO, "Rozpoczeto dzialanie demona w trybie rekursywnym");
+    }
+    else
+    {
+    syslog(LOG_INFO, "Rozpoczeto dzialanie demona w trybie nierekursywnym");
+    }
     while (true) {
         if (flags.recursive == false) {
             syncNonRecursive(sourceDir, targetDir);
-            printf("SKONCZONO SYNC NIE REKURESE\n");
             /* todo: usun pliki ktore istnieja w katalogu docelowym, a nie
              * istnieja w zrodlowym */
 
@@ -561,6 +571,7 @@ daemonLoop(char * sourceDir, char * targetDir) {
             printf("SKONCZONO SYNC RECURSE\n");
         }
         /* uwolnic pamiec */
+        syslog(LOG_INFO, "Uspienie demona na czas %d sekund", flags.sleep_time);
         signal(SIGUSR1, sigusr_handler);
         while(!signal_received)
         {
@@ -623,7 +634,7 @@ main(int argc, char ** argv) {
             flags.recursive = true;
             break;
         case 'p':
-            flags.threshold = atoi(optarg);
+            flags.threshold = atoi(optarg) * 1000000; // Prog w MB
             break;
         default:
             fprintf(stderr,
