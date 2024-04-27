@@ -1,5 +1,6 @@
 #include <dirent.h>
 
+#include <sys/syslog.h>
 #include <syslog.h>
 
 #include <fcntl.h>
@@ -67,88 +68,55 @@ volatile bool signal_received;
  * jak w drugim katalogu*/
 
 // Funkcja kopiujaca dla dużych plików (> edge)
-int copy_big(const char *source_file, const char *destination_file,
-             size_t BUF_SIZE) {
-  // Otwórz pliki
-  int fd_in = open(source_file, O_RDONLY);
-  if (fd_in == -1) {
-    perror("Problem pliku źródlowego!");
+int copy_big(const char *source_file, const char *destination_file)
+{ 
+  int source_fd,dest_fd;
+  char *src, *dst;
+  struct stat file_info;
+
+  source_fd = open(source_file, O_RDONLY);
+  if(source_fd == -1)
+  {
+    syslog(LOG_ERR, "Problem z otworzeniem pliku %s", source_file);
     exit(EXIT_FAILURE);
   }
-
-  int fd_out = open(destination_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  if (fd_out == -1) {
-    perror("Problem pliku docelowego!");
-    close(fd_in);
+  if(fstat(source_fd,&file_info) == -1)
+  {
+    syslog(LOG_ERR, "Problem z uzyskaniem informacji o pliku: %s", source_file);
     exit(EXIT_FAILURE);
   }
-
-  struct stat sb;
-  if (fstat(fd_in, &sb) == -1) {
-    perror("Problem ze statystykami!");
-    close(fd_in);
+  dest_fd = open(destination_file, O_RDWR | O_CREAT, 0666);
+  if(dest_fd == -1)
+  {
+    syslog(LOG_ERR, "Problem z otwarciem pliku docelowego: %s", destination_file);
     exit(EXIT_FAILURE);
   }
-  size_t total_size = sb.st_size;
-  size_t bytes_copied = 0;
-  size_t bytes_written;
-  size_t mapping_size;
-  void *addr;
-
-  // Petla kopiujaca dane
-  while (bytes_copied < total_size) {
-    if (total_size - bytes_copied < BUF_SIZE) {
-      mapping_size = total_size - bytes_copied;
-    } else {
-      mapping_size = BUF_SIZE;
-    }
-
-    // Mapowanie pliku do pamieci
-    addr = mmap(NULL, mapping_size, PROT_READ, MAP_SHARED, fd_in, bytes_copied);
-    if (addr == MAP_FAILED) {
-      perror("Problem z mmap'em!");
-      close(fd_in);
-      close(fd_out);
-      return EXIT_FAILURE;
-    }
-
-    // Zapis danych do pliku docelowego
-    bytes_written = write(fd_out, addr, mapping_size);
-
-    if (bytes_written != mapping_size) {
-      if (bytes_written == -1 && errno == EINTR) {
-        munmap(addr, mapping_size);
-        continue;
-      }
-      perror("Problem z zapisem!");
-      munmap(addr, mapping_size);
-      close(fd_in);
-      close(fd_out);
-      return EXIT_FAILURE;
-    }
-
-    // Zwolnienie zmapowanej pamieci
-    if (munmap(addr, mapping_size) == -1) {
-      perror("Problem z munmap'em!");
-      close(fd_in);
-      close(fd_out);
-      return EXIT_FAILURE;
-    }
-
-    bytes_copied += mapping_size;
+  if(ftruncate(dest_fd, file_info.st_size) == -1)
+  {
+    syslog(LOG_ERR, "Problem z ustawieniem rozmiaru pliku docelowego: %s", destination_file);
+    exit(EXIT_FAILURE);
   }
-
-  // Zamkniecie plików
-  if (close(fd_in) == -1) {
-    perror("Problem z zamknieciem pliku zrodlowego!");
-    return EXIT_FAILURE;
+  src = mmap(NULL, file_info.st_size, PROT_READ, MAP_PRIVATE, source_fd, 0);
+  if(src == MAP_FAILED)
+  {
+    syslog(LOG_ERR, "Problem z mapowaniem pliku zrodlowego: %s", source_file);
+    exit(EXIT_FAILURE);
   }
-  if (close(fd_out) == -1) {
-    perror("Problem z zamknieciem pliku docelowego!");
-    return EXIT_FAILURE;
+  dst = mmap(NULL, file_info.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, dest_fd, 0);
+  if(dst == MAP_FAILED)
+  {
+    syslog(LOG_ERR, "Problem z mapowaniem pliku docelowego: %s", destination_file);
+    exit(EXIT_FAILURE);
   }
+  /* kopiowanie pliku */
+  memcpy(dst, src, file_info.st_size);
 
-  return EXIT_SUCCESS;
+  munmap(src, file_info.st_size);
+  munmap(dst, file_info.st_size);
+
+  close(source_fd);
+  close(dest_fd);
+  return 0;
 }
 
 // Kopiowanie dla malych plikow
@@ -218,7 +186,7 @@ void copy(char *sourceFilePath, char *targetFilePath) {
 
   // Wybor funkcji kopiujacej w zaleznosci od rozmiaru pliku
   if (flags.threshold < size) {
-    result = copy_big(source_file, destination_file, bufferSize);
+    result = copy_big(source_file, destination_file);
   } else {
     result = copy_small(source_file, destination_file, bufferSize);
   }
