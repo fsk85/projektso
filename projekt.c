@@ -316,6 +316,7 @@ void appendSubDirList(subDirList **head, char *Path) {
     exit(EXIT_FAILURE);
   strcpy(node->path, Path);
   node->next = NULL;
+  node->previous = NULL;
   if (!*head) {
     *head = node;
     return;
@@ -325,7 +326,7 @@ void appendSubDirList(subDirList **head, char *Path) {
     tmp = tmp->next;
   }
   tmp->next = node;
-  tmp->next->previous = tmp;
+  node->previous = tmp;
 }
 /* zmienic zeby katalog sie zamykal przed wywolaniem rekurencyjnym bo wypierdala
  * blad przy wielu plikach w katalogu ze za duzo otwartych plikow jest */
@@ -388,6 +389,28 @@ char *constructFullPath(char *dirPath, char *fileName) {
   return tmp;
 }
 
+void freeFileList(fileList *head)
+{
+  fileList *tmp; 
+  while(head != NULL)
+  {
+    tmp = head;
+    head = head->next;
+    free(tmp);
+  }
+}
+
+void freeSubDirList(subDirList *head)
+{
+  subDirList *tmp; 
+  while(head != NULL)
+  {
+    tmp = head;
+    head = head->next;
+    free(tmp);
+  }
+}
+
 void syncNonRecursive(char *sourceDirPath, char *targetDirPath) {
   fileList *srcDirHead = saveFilesToList(sourceDirPath);
   fileList *targetDirHead = saveFilesToList(targetDirPath);
@@ -405,18 +428,22 @@ void syncNonRecursive(char *sourceDirPath, char *targetDirPath) {
       printf("FULLSOURCEPATH: %s\n", fullSourcePath);
       printf("FULLTARGETPATH: %s\n", fullTargetPath);
       copy(fullSourcePath, fullTargetPath);
+      free(fullSourcePath);
+      free(fullTargetPath);
     }
     node = node->next;
     printf("WYSIADAMY\n");
   }
   while (nodeTarg) {
     if (fileToRemove(nodeTarg, srcDirHead)) {
-      char *fullTargetPath =
-          constructFullPath(targetDirPath, nodeTarg->fileName);
+      char *fullTargetPath = constructFullPath(targetDirPath, nodeTarg->fileName);
       unlink(fullTargetPath);
+      free(fullTargetPath);
     }
     nodeTarg = nodeTarg->next;
   }
+  freeFileList(srcDirHead);
+  freeFileList(targetDirHead);
 }
 
 bool directoryExists(char *dirPath) {
@@ -437,35 +464,38 @@ void removeRecursive(subDirList *trgDirHead, char *trgDirPath,
   while (trgDirHead->next) {
     trgDirHead = trgDirHead->next;
   }
-  while (trgDirHead->previous != NULL) {
+  while (trgDirHead != NULL) {
     /* konstruujemy sciezke i sprawdzamy czy katalog istnieje jesli nie to go
      * usuwamy */
     char *relativePath = getRelativePath(trgDirPath, trgDirHead->path);
     char *fullPath = constructFullPath(srcDirPath, relativePath);
     if (!directoryExists(fullPath)) {
       fileList *removeList = saveFilesToList(trgDirHead->path);
-      while (removeList) {
-        char *removeFilePath =
-            constructFullPath(trgDirHead->path, removeList->fileName);
+      while (removeList != NULL) {
+        char *removeFilePath = constructFullPath(trgDirHead->path, removeList->fileName);
         unlink(removeFilePath);
         fileList *tmp = removeList;
         removeList = removeList->next;
         free(tmp);
+        free(removeFilePath);
       }
       rmdir(trgDirHead->path);
       printf("USUNIETO: %s\n", trgDirHead->path);
     }
+    free(fullPath);
     trgDirHead = trgDirHead->previous;
   }
 }
 
 void syncRecursive(char *sourceDirPath, char *targetDirPath) {
   /* inicjalizujemy liste podkatalogow w katalogu zrodlowym*/
+  printf("Hello \n");
   subDirList *srcDirHead = NULL;
   srcDirHead = getSubDirs(srcDirHead, sourceDirPath);
   /* inicjalizujemy liste podkatalogow w katalogu docelowym */
   subDirList *targetDirHead = NULL;
   targetDirHead = getSubDirs(targetDirHead, targetDirPath);
+  printf("hello 2\n");
   /* inicjalizujemy pomocnicze wskazniki na pierwszy element listy
    * podkatalogow */
   subDirList *srcDirNode = srcDirHead;
@@ -493,6 +523,10 @@ void syncRecursive(char *sourceDirPath, char *targetDirPath) {
   }
   // Usuwamy wszystkie katalogi i pliki, ktore nie istnieja w katalogu zrodlowym
   removeRecursive(targetDirHead, targetDirPath, sourceDirPath);
+  printf("TEST: %s\n", targetDirHead->path);
+  printf("TEST: %s\n", srcDirHead->path);
+  freeSubDirList(targetDirHead);
+  freeSubDirList(srcDirHead);
 }
 
 void sigusr_handler(int signum) {
@@ -517,10 +551,9 @@ void daemonLoop(char *sourceDir, char *targetDir) {
       syncRecursive(sourceDir, targetDir);
       printf("SKONCZONO SYNC RECURSE\n");
     }
-    /* uwolnic pamiec */
     syslog(LOG_INFO, "Uspienie demona na czas %d sekund", flags.sleep_time);
     signal(SIGUSR1, sigusr_handler);
-    if (!signal_received) {
+    if (signal_received == false) {
       sleep(flags.sleep_time);
     }
     signal_received = false;
@@ -534,12 +567,12 @@ int runDaemon(char *sourceDir, char *targetDir) {
   /* Tworzenie nowego procesu */
   pid = fork();
   if (pid == -1)
-    return -1;
+  return -1;
   else if (pid != 0)
-    exit(EXIT_SUCCESS);
-  /*Stworzenie nowej sesji i grupy procesow*/
+   exit(EXIT_SUCCESS);
+/*Stworzenie nowej sesji i grupy procesow*/
   if (setsid() == -1)
-    return -1;
+   return -1;
 
   /*Ustawienie katalogu roboczego na katalog glowny*/
   if (chdir("/") == -1)
