@@ -490,6 +490,7 @@ void removeRecursive(subDirList *trgDirHead, char *trgDirPath,
       syslog(LOG_INFO,"Usuniecie katalogu: %s", trgDirHead->path);
     }
     free(fullPath);
+    free(relativePath);
     trgDirHead = trgDirHead->previous;
   }
 }
@@ -527,6 +528,7 @@ void syncRecursive(char *sourceDirPath, char *targetDirPath) {
       mkdir(fullTargetPath, info.st_mode);
       syncNonRecursive(srcDirNode->path, fullTargetPath);
     }
+    free(relativePath);
     srcDirNode = srcDirNode->next;
   }
   // Usuwamy wszystkie katalogi i pliki, ktore nie istnieja w katalogu zrodlowym
