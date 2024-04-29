@@ -376,7 +376,6 @@ subDirList *getSubDirs(subDirList *head, char *dirPath) {
     subDir = readdir(dir);
   }
   closedir(dir);
-  printf("getting subdir: %s\n", dirPath);
   return head;
 }
 
@@ -410,7 +409,6 @@ char *constructFullPath(char *dirPath, char *fileName) {
   strcpy(tmp, dirPath);
   strcat(tmp, "/");
   strcat(tmp, fileName);
-  printf("constructed path: %s\n", tmp);
   return tmp;
 }
 
@@ -449,14 +447,11 @@ void syncNonRecursive(char *sourceDirPath, char *targetDirPath) {
       char *fullSourcePath = constructFullPath(sourceDirPath, node->fileName);
       char *fullTargetPath = constructFullPath(targetDirPath, node->fileName);
       syslog(LOG_INFO,"Kopiowanie pliku: %s do: %s\n",fullSourcePath, fullTargetPath);
-      printf("FULLSOURCEPATH: %s\n", fullSourcePath);
-      printf("FULLTARGETPATH: %s\n", fullTargetPath);
       copy(fullSourcePath, fullTargetPath);
       free(fullSourcePath);
       free(fullTargetPath);
     }
     node = node->next;
-    printf("WYSIADAMY\n");
   }
   while (nodeTarg) {
     if (fileToRemove(nodeTarg, srcDirHead)) {
@@ -567,7 +562,9 @@ void daemonLoop(char *sourceDir, char *targetDir) {
   openlog("demon", LOG_NDELAY, LOG_DAEMON);
   if (flags.recursive == true) {
     syslog(LOG_INFO, "Rozpoczeto dzialanie demona w trybie rekursywnym");
-  } else {
+  } 
+  else 
+  {
     syslog(LOG_INFO, "Rozpoczeto dzialanie demona w trybie nierekursywnym");
   }
   while (true) {
