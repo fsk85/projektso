@@ -85,7 +85,7 @@ int copy_big(const char *source_file, const char *destination_file)
     exit(EXIT_FAILURE);
   }
   // Otwarcie pliku docelowego w trybie odczytywania i pisania, stworzenie go jesli nie istnieje
-  dest_fd = open(destination_file, O_RDWR | O_CREAT, 0666); 
+  dest_fd = open(destination_file, O_RDWR | O_CREAT, file_info.st_mode); 
   if(dest_fd == -1)
   {
     syslog(LOG_ERR, "Problem z otwarciem pliku docelowego: %s", destination_file);
@@ -139,9 +139,16 @@ int copy_small(const char *source_file, const char *destination_file,
     exit(EXIT_FAILURE);
   }
 
+  struct stat file_info; 
+
+  if(fstat(fd_in,&file_info) == -1) // Uzyskanie informacji o pliku zrodlowym
+  {
+    syslog(LOG_ERR, "Problem z uzyskaniem informacji o pliku: %s", source_file);
+    exit(EXIT_FAILURE);
+  }
+
   // Otworz plik docelowy
-  int fd_out =
-      open(destination_file, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
+  int fd_out = open(destination_file, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, file_info.st_mode);
 
   if (fd_out == -1) {
     perror("Problem pliku docelowego!");
@@ -429,10 +436,9 @@ void syncNonRecursive(char *sourceDirPath, char *targetDirPath) {
      * zostal zmieniony */
     if (changedFile(node, targetDirHead)) {
       /*Skopiuj plik do katalogu docelowego */
-      printf("zmienil sie lub nie istnieje plik w katalogu:  %s o naziwe %s\n",
-             targetDirPath, node->fileName);
       char *fullSourcePath = constructFullPath(sourceDirPath, node->fileName);
       char *fullTargetPath = constructFullPath(targetDirPath, node->fileName);
+      syslog(LOG_INFO,"Kopiowanie pliku: %s do: %s\n",fullSourcePath, fullTargetPath);
       printf("FULLSOURCEPATH: %s\n", fullSourcePath);
       printf("FULLTARGETPATH: %s\n", fullTargetPath);
       copy(fullSourcePath, fullTargetPath);
@@ -483,13 +489,14 @@ void removeRecursive(subDirList *trgDirHead, char *trgDirPath,
       while (removeList != NULL) {
         char *removeFilePath = constructFullPath(trgDirHead->path, removeList->fileName);
         unlink(removeFilePath);
+        syslog(LOG_INFO, "Usuniecie pliku: %s", removeFilePath);
         fileList *tmp = removeList;
         removeList = removeList->next;
         free(tmp);
         free(removeFilePath);
       }
       rmdir(trgDirHead->path);
-      printf("USUNIETO: %s\n", trgDirHead->path);
+      syslog(LOG_INFO,"Usuniecie katalogu: %s", trgDirHead->path);
     }
     free(fullPath);
     trgDirHead = trgDirHead->previous;
@@ -580,7 +587,7 @@ int runDaemon(char *sourceDir, char *targetDir) {
   pid_t pid;
   int i;
   /* Tworzenie nowego procesu */
-  pid = fork();
+    pid = fork();
   if (pid == -1)
   return -1;
   else if (pid != 0)
@@ -588,18 +595,18 @@ int runDaemon(char *sourceDir, char *targetDir) {
   /* Stworzenie nowej sesji i grupy procesow */
   if (setsid() == -1)
    return -1;
-
+  
   /* Ustawienie katalogu roboczego na katalog glowny */
   if (chdir("/") == -1)
     return -1;
-
+  
   pid_t cpid = getpid();
   printf("info wstepne: sourceDir: %s targetDir: %s pid: %d t: %d p: %d\n",
          sourceDir, targetDir, cpid, flags.sleep_time, flags.threshold);
   /* Zamkniecie otwartych deskryptorow pliku */
      for (i = 0; i < NR_OPEN; i++)
           close(i);
-
+  
   /* Przeadresowanie deskryptorow plikow 0,1,2 na /dev/null */
      open("/dev/null", O_RDWR);
       dup(0);
@@ -612,6 +619,7 @@ int runDaemon(char *sourceDir, char *targetDir) {
 int main(int argc, char **argv) {
   /* Odczytywanie argumentow programu i ustawianie odpowiedniej konfiguracji */
   int opt;
+  printf("%lu\n",sizeof(int));
   while ((opt = getopt(argc, argv, "Rp:t:")) != -1) {
     switch (opt) {
     case 't':
