@@ -29,6 +29,8 @@
 
 #include <signal.h>
 
+// cos jest nie tak jak sie da prog wiekszy niz 3GB
+
 // Struktura definiujaca liste plikow
 typedef struct fileList {
   char fileName[PATH_MAX]; // Nazwa pliku
@@ -125,17 +127,17 @@ int copy_big(const char *source_file, const char *destination_file)
 }
 
 // Funkcja kopiujaca dla malych plikow 
-int copy_small(const char *source_file, const char *destination_file,
-               size_t BUF_SIZE) {
+int copy_small(const char *source_file, const char *destination_file) {
+  size_t bufferSize = 4096;
   ssize_t bytes_read;
   ssize_t bytes_written;
-  char *buffer = malloc(BUF_SIZE);
+  char *buffer = malloc(bufferSize);
 
   // Otworz plik zrodlowy
   int fd_in = open(source_file, O_RDONLY | O_BINARY);
 
   if (fd_in == -1) {
-    perror("Problem pliku zrodlowego!");
+    syslog(LOG_ERR,"Problem z otwarciem pliku zrodlowego");
     exit(EXIT_FAILURE);
   }
 
@@ -151,17 +153,17 @@ int copy_small(const char *source_file, const char *destination_file,
   int fd_out = open(destination_file, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, file_info.st_mode);
 
   if (fd_out == -1) {
-    perror("Problem pliku docelowego!");
+    syslog(LOG_ERR,"Problem z otwarciem pliku docelowego");
     close(fd_in);
     exit(EXIT_FAILURE);
   }
 
   // Petla kopiujaca dane
-  while ((bytes_read = read(fd_in, buffer, BUF_SIZE)) > 0) {
+  while ((bytes_read = read(fd_in, buffer, bufferSize)) > 0) {
     bytes_written = write(fd_out, buffer, bytes_read);
 
     if (bytes_written != bytes_read) {
-      perror("Problem zapisu!");
+      syslog(LOG_ERR,"Problem z zapisem do pliku");
       free(buffer);
       close(fd_in);
       close(fd_out);
@@ -171,12 +173,12 @@ int copy_small(const char *source_file, const char *destination_file,
 
   // Zamkniecie plikow
   if (close(fd_in) == -1) {
-    perror("Problem z zamknieciem pliku zrodlowego!");
+    syslog(LOG_ERR,"Problem z zamknieciem pliku zrodlowego");
     exit(EXIT_FAILURE);
   }
 
   if (close(fd_out) == -1) {
-    perror("Problem z zamknieciem pliku docelowego!");
+    syslog(LOG_ERR,"Problem z zamknieciem pliku docelowego");
     exit(EXIT_FAILURE);
   }
   free(buffer);
@@ -184,9 +186,6 @@ int copy_small(const char *source_file, const char *destination_file,
 }
 
 void copy(char *sourceFilePath, char *targetFilePath) {
-  size_t bufferSize = 4096;
-  off_t size;
-  size_t result;
   // Przypisanie sciezki do pliku
   const char *source_file = sourceFilePath;
   const char *destination_file = targetFilePath;
@@ -194,22 +193,14 @@ void copy(char *sourceFilePath, char *targetFilePath) {
   // Sprawdzenie rozmiaru pliku zrodlowego
   struct stat st;
   stat(source_file, &st);
-  size = st.st_size;
 
   // Wybor funkcji kopiujacej w zaleznosci od rozmiaru pliku
-  if (flags.threshold < size) {
-    result = copy_big(source_file, destination_file);
+  if (flags.threshold < st.st_size) {
+    copy_big(source_file, destination_file);
   } else {
-    result = copy_small(source_file, destination_file, bufferSize);
+    copy_small(source_file, destination_file);
   }
 
-  // Sprawdzenie wyniku operacji kopiowania
-  if (result == EXIT_FAILURE) {
-    perror("Blad kopiowania!");
-    exit(EXIT_FAILURE);
-  } else {
-    printf("Udalo sie skopiowac plik!\n");
-  }
 }
 // Funkcja sprawdzajaca czy plik docelowy jest inny od pliku zrodlowego
 bool changedFile(fileList *sourceNode, fileList *targetNode) {
@@ -510,7 +501,6 @@ void syncRecursive(char *sourceDirPath, char *targetDirPath) {
   /* Inicjalizujemy liste podkatalogow w katalogu docelowym */
   subDirList *targetDirHead = NULL;
   targetDirHead = getSubDirs(targetDirHead, targetDirPath);
-  printf("hello 2\n");
   /* Inicjalizujemy pomocnicze wskazniki na pierwszy element listy podkatalogow */
   subDirList *srcDirNode = srcDirHead;
   subDirList *targetDirNode = targetDirHead;
@@ -601,8 +591,8 @@ int runDaemon(char *sourceDir, char *targetDir) {
     return -1;
   
   pid_t cpid = getpid();
-  printf("info wstepne: sourceDir: %s targetDir: %s pid: %d t: %d p: %d\n",
-         sourceDir, targetDir, cpid, flags.sleep_time, flags.threshold);
+  printf("Rozpoczeto dzialanie demona \nRekurencja: %s\nKatalog zrodlowy: %s\nKatalog docelowy: %s\nPID: %d\nCzas spania: %d s\nProg: %lu MB\n",
+         flags.recursive ? "Tak" : "Nie",sourceDir, targetDir, cpid, flags.sleep_time, flags.threshold/1000000);
   /* Zamkniecie otwartych deskryptorow pliku */
      for (i = 0; i < NR_OPEN; i++)
           close(i);
@@ -619,7 +609,6 @@ int runDaemon(char *sourceDir, char *targetDir) {
 int main(int argc, char **argv) {
   /* Odczytywanie argumentow programu i ustawianie odpowiedniej konfiguracji */
   int opt;
-  printf("%lu\n",sizeof(int));
   while ((opt = getopt(argc, argv, "Rp:t:")) != -1) {
     switch (opt) {
     case 't':
@@ -632,9 +621,7 @@ int main(int argc, char **argv) {
       flags.threshold = atoi(optarg) * 1000000; // Prog w MB
       break;
     default:
-      fprintf(stderr,
-              "Sposob uzycia: %s [flagi] [katalog_zrodlowy] "
-              "[katalog_docelowy]",
+      fprintf(stderr,"Sposob uzycia: %s [flagi] [katalog_zrodlowy] [katalog_docelowy]",
               argv[0]);
       exit(EXIT_FAILURE);
     }
