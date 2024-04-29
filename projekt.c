@@ -78,12 +78,14 @@ int copy_big(const char *source_file, const char *destination_file)
   source_fd = open(source_file, O_RDONLY); // Otwarcie pliku zrodlowego w trybie odczytywania
   if(source_fd == -1) // Sprawdzenie czy nie wystapil blad w funkcji open
   {
-    syslog(LOG_ERR, "Problem z otworzeniem pliku %s", source_file);
+    syslog(LOG_ERR, "Problem z otworzeniem pliku %s\n", source_file);
+    perror("Blad");
     exit(EXIT_FAILURE);
   }
   if(fstat(source_fd,&file_info) == -1) // Uzyskanie informacji o pliku zrodlowym
   {
-    syslog(LOG_ERR, "Problem z uzyskaniem informacji o pliku: %s", source_file);
+    syslog(LOG_ERR, "Problem z uzyskaniem informacji o pliku: %s\n", source_file);
+    perror("Blad");
     exit(EXIT_FAILURE);
   }
   // Otwarcie pliku docelowego w trybie odczytywania i pisania, stworzenie go jesli nie istnieje
@@ -91,12 +93,14 @@ int copy_big(const char *source_file, const char *destination_file)
   if(dest_fd == -1)
   {
     syslog(LOG_ERR, "Problem z otwarciem pliku docelowego: %s", destination_file);
+    perror("Blad");
     exit(EXIT_FAILURE);
   }
   // Obciecie pliku docelowego 
   if(ftruncate(dest_fd, file_info.st_size) == -1)
   {
     syslog(LOG_ERR, "Problem z ustawieniem rozmiaru pliku docelowego: %s", destination_file);
+    perror("Blad");
     exit(EXIT_FAILURE);
   }
   // Zmapowanie pliku zrodlowego do pamieci
@@ -104,6 +108,7 @@ int copy_big(const char *source_file, const char *destination_file)
   if(src == MAP_FAILED)
   {
     syslog(LOG_ERR, "Problem z mapowaniem pliku zrodlowego: %s", source_file);
+    perror("Blad");
     exit(EXIT_FAILURE);
   }
   // Zmapowanie pliku docelowego do pamieci
@@ -111,6 +116,7 @@ int copy_big(const char *source_file, const char *destination_file)
   if(dst == MAP_FAILED)
   {
     syslog(LOG_ERR, "Problem z mapowaniem pliku docelowego: %s", destination_file);
+    perror("Blad");
     exit(EXIT_FAILURE);
   }
   // Kopiowanie pliku zrodlowego do pliku docelowego
@@ -128,19 +134,20 @@ int copy_big(const char *source_file, const char *destination_file)
 
 // Funkcja kopiujaca dla malych plikow 
 int copy_small(const char *source_file, const char *destination_file) {
-  size_t bufferSize = 4096;
+  size_t bufferSize = 4096; // Rozmiar buffora przechowujacego dane: 4096 bajtow
   ssize_t bytes_read;
   ssize_t bytes_written;
   char *buffer = malloc(bufferSize);
 
-  // Otworz plik zrodlowy
+  // Otwarcie pliku zrodlowego w trybie odczytywania 
   int fd_in = open(source_file, O_RDONLY | O_BINARY);
 
   if (fd_in == -1) {
-    syslog(LOG_ERR,"Problem z otwarciem pliku zrodlowego");
+    syslog(LOG_ERR,"Problem z otwarciem pliku zrodlowego: %s",source_file);
     exit(EXIT_FAILURE);
   }
 
+  // Inicjalizacja struktury przechowujacej informacje o pliku
   struct stat file_info; 
 
   if(fstat(fd_in,&file_info) == -1) // Uzyskanie informacji o pliku zrodlowym
@@ -149,7 +156,7 @@ int copy_small(const char *source_file, const char *destination_file) {
     exit(EXIT_FAILURE);
   }
 
-  // Otworz plik docelowy
+  // Otwarcie pliku zrodlowego, jesli istnieje to obcinamy go do 0 
   int fd_out = open(destination_file, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, file_info.st_mode);
 
   if (fd_out == -1) {
@@ -206,7 +213,7 @@ void copy(char *sourceFilePath, char *targetFilePath) {
 bool changedFile(fileList *sourceNode, fileList *targetNode) {
   if (!sourceNode)
     return 0;
-
+  // Zmienna zwracana, sygnalizujaca czy plik docelowy rozni sie od zrodlowego, domyslnie true
   bool changed = true;
   while (targetNode != NULL) {
     if (!strcmp(sourceNode->fileName, targetNode->fileName) &&
@@ -223,14 +230,15 @@ bool changedFile(fileList *sourceNode, fileList *targetNode) {
   return changed;
 }
 
+// Funkcja do usuwania pozostalych plikow z katalogow,
 int fileToRemove(fileList *sourceNode, fileList *targetNode) {
   if (!sourceNode)
     return 0;
   int different = 1;
   while (targetNode != NULL) {
-    if (!strcmp(sourceNode->fileName, targetNode->fileName)) {
-      different = 0;
-      break;
+    if (!strcmp(sourceNode->fileName, targetNode->fileName)) { // Pliki o identycznej nazwie zostaly 
+      different = 0;                                           // juz sprawdzone wiec, szukamy tylko
+      break;                                                  // plikow, ktore nie maja odpowiadajacej nazwy 
     }
     targetNode = targetNode->next;
   }
@@ -303,15 +311,26 @@ void checkDirs(char *sourceDir, char *targetDir) {
   DIR *srcDir;
   DIR *targDir;
   srcDir = opendir(sourceDir);
-  targDir = opendir(targetDir);
   /* sprawdzamy czy mozna otworzyc katalogi */
-  if (srcDir == NULL || targDir == NULL) {
-    syslog(LOG_ERR,"Wystapil blad z proba otwarcia katalogow");
+  if(srcDir == NULL)
+  { 
+    fprintf(stderr, "Wystapil blad z proba otwarcia katalogu: %s\n",sourceDir);
+    perror("Blad");
+    exit(EXIT_FAILURE);
+  }
+
+  targDir = opendir(targetDir);
+
+  if(targDir == NULL)
+  {
+    fprintf(stderr, "Wystapil blad z proba otwarcia katalogu: %s\n",targetDir);
+    perror("Blad");
     exit(EXIT_FAILURE);
   }
   /* zamykamy katalogi, jesli wystapil blad to */
   if (closedir(srcDir) == -1 || closedir(targDir) == -1) {
-    syslog(LOG_ERR,"Wystapil blad z proba zamkniecia katalogow");
+    fprintf(stderr, "Wystapil blad z proba zamkniecia katalogow\n");
+    perror("Blad");
     exit(EXIT_FAILURE);
   }
 }
@@ -623,7 +642,7 @@ int main(int argc, char **argv) {
       flags.threshold = atoi(optarg) * 1000000; // Prog w MB
       break;
     default:
-      fprintf(stderr,"Sposob uzycia: %s [flagi] [katalog_zrodlowy] [katalog_docelowy]",
+      fprintf(stderr,"Sposob uzycia: %s [flagi] [katalog_zrodlowy] [katalog_docelowy]\n",
               argv[0]);
       exit(EXIT_FAILURE);
     }
@@ -632,7 +651,7 @@ int main(int argc, char **argv) {
   char *sourceDir = argv[optind];
   char *targetDir = argv[optind + 1];
   if (argv[optind + 2] != NULL) {
-    fprintf(stderr, "Podano niewlasciwa liczbe argumentow!\n");
+    fprintf(stderr, "Sposob uzycia: %s [flagi] [katalog_zrodlowy] [katalog_docelowy]\n", argv[0]);
     exit(EXIT_FAILURE);
   }
   /* Sprawdzamy czy podane katalogi istnieja, czy mamy do nich dostep.. */
