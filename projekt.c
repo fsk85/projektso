@@ -212,7 +212,7 @@ bool changedFile(fileList *sourceNode, fileList *targetNode) {
     if (!strcmp(sourceNode->fileName, targetNode->fileName) &&
         sourceNode->fileSize == targetNode->fileSize &&
         sourceNode->permissions == targetNode->permissions &&
-        (targetNode->modDate >= sourceNode ->modDate)) {
+        sourceNode->modDate < targetNode->modDate) {
       changed = false; // Jesli wszystkie warunki zostaly spelnione, oznacza to ze plik sie nie zmienil
       // Wychodzimy z petli i zwracamy false
       break;
@@ -222,7 +222,20 @@ bool changedFile(fileList *sourceNode, fileList *targetNode) {
 
   return changed;
 }
- 
+
+int fileToRemove(fileList *sourceNode, fileList *targetNode) {
+  if (!sourceNode)
+    return 0;
+  int different = 1;
+  while (targetNode != NULL) {
+    if (!strcmp(sourceNode->fileName, targetNode->fileName)) {
+      different = 0;
+      break;
+    }
+    targetNode = targetNode->next;
+  }
+  return different;
+}
 // Funkcja dodajaca odczytany plik do listy plikow
 void addToList(fileList **head, char *filename, off_t filesize, time_t moddate,
                mode_t permissions) {
@@ -278,8 +291,7 @@ fileList *saveFilesToList(char *dirPath) {
 
     /* Jezeli jednostka jest plikiem regularnym to dodajemy go do listy */
     if (!S_ISDIR(info.st_mode)) {
-      addToList(&head, dirContent->d_name, 
-                info.st_size, info.st_mtime,
+      addToList(&head, dirContent->d_name, info.st_size, info.st_mtime,
                 info.st_mode);
     }
   }
@@ -428,7 +440,7 @@ void syncNonRecursive(char *sourceDirPath, char *targetDirPath) {
     printf("WYSIADAMY\n");
   }
   while (nodeTarg) {
-    if (!changedFile(nodeTarg, srcDirHead)) {
+    if (fileToRemove(nodeTarg, srcDirHead)) {
       char *fullTargetPath = constructFullPath(targetDirPath, nodeTarg->fileName);
       unlink(fullTargetPath);
       free(fullTargetPath);
