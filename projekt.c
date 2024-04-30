@@ -609,8 +609,8 @@ int runDaemon(char *sourceDir, char *targetDir) {
     return -1;
   
   pid_t cpid = getpid();
-  printf("Rozpoczeto dzialanie demona \nRekurencja: %s\nKatalog zrodlowy: %s\nKatalog docelowy: %s\nPID: %d\nCzas spania: %d s\nProg: %lu MB\n",
-         flags.recursive ? "Tak" : "Nie",sourceDir, targetDir, cpid, flags.sleep_time, flags.threshold/1000000);
+  printf("Rozpoczeto dzialanie demona \nRekurencja: %s\nKatalog zrodlowy: %s\nKatalog docelowy: %s\nPID: %d\nCzas spania: %d s\nProg: %d MB\n",
+         flags.recursive ? "Tak" : "Nie",sourceDir, targetDir, cpid, flags.sleep_time, (int)(flags.threshold/1000000.0));
   /* Zamkniecie otwartych deskryptorow pliku */
      for (i = 0; i < NR_OPEN; i++)
           close(i);
@@ -636,7 +636,7 @@ int main(int argc, char **argv) {
       flags.recursive = true;
       break;
     case 'p':
-      flags.threshold = atoi(optarg) * 1000000; // Prog w MB
+      flags.threshold = strtoul(optarg, NULL, 10) * 1000000; 
       break;
     default:
       fprintf(stderr,"Sposob uzycia: %s [flagi] [katalog_zrodlowy] [katalog_docelowy]\n",
